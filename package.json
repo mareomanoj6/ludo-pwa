@@ -1,0 +1,11 @@
+{
+  "name": "minimal-ludo",
+  "version": "1.0.0",
+  "description": "Minimalist Ludo PWA with fair cryptographic dice and AI opponents",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["ludo", "board-game", "pwa", "offline", "ai"],
+  "license": "MIT"
+}
