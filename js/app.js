@@ -127,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const playerTypeTag = document.getElementById('player-type-tag');
   const playerSideTag = document.getElementById('player-side-tag');
   const turnActionHint = document.getElementById('turn-action-hint');
+  const turnTimerBadge = document.getElementById('turn-timer-badge');
+  const aiAssistToggleBtn = document.getElementById('ai-assist-toggle-btn');
 
   // Modal References
   const setupModal = document.getElementById('setup-modal');
@@ -137,6 +139,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const newGameBtn = document.getElementById('new-game-btn');
   const statsBtn = document.getElementById('stats-btn');
   const rulesBtn = document.getElementById('rules-btn');
+
+  // Persistence helpers
+  function saveGameState(g) {
+    if (!g || g.state === 'GAME_OVER') return;
+    try {
+      localStorage.setItem('ludo_saved_game', JSON.stringify(g.toJSON()));
+    } catch (e) {
+      console.warn('Could not save game state:', e);
+    }
+  }
+
+  function clearSavedGameState() {
+    try {
+      localStorage.removeItem('ludo_saved_game');
+    } catch (e) {}
+  }
 
   // Initialize Game & Renderer
   const renderer = new LudoRenderer(svgBoard, {
@@ -149,7 +167,9 @@ document.addEventListener('DOMContentLoaded', () => {
     playerName,
     playerTypeTag,
     playerSideTag,
-    turnActionHint
+    turnActionHint,
+    turnTimerBadge,
+    aiAssistToggleBtn
   });
 
   let game = new LudoGame({ playerCount: 4 });
@@ -157,15 +177,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // Bind Game Events to Renderer and Audio
   function attachGameListeners(g) {
     g.on('gameStart', ({ players, currentPlayer }) => {
-      renderer.renderTokens(players);
+      renderer.initPlayerSlots(players);
+      renderer.renderTokens(players, g.rules.blockades);
       renderer.updateHUD(currentPlayer, g.state);
       renderer.renderDice(1, false, !currentPlayer.isAi, currentPlayer.color);
+      saveGameState(g);
     });
 
     g.on('turnChanged', ({ player }) => {
       renderer.clearHighlights();
       renderer.updateHUD(player, g.state);
       renderer.renderDice(g.currentRoll || 1, false, !player.isAi, player.color);
+      saveGameState(g);
     });
 
     g.on('diceRolled', ({ player, roll }) => {
@@ -181,11 +204,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.soundController) window.soundController.playPenalty();
       renderer.showToast('3rd Six! Move skipped', 1500);
       renderer.updateHUD(player, 'SKIPPED', roll);
+      saveGameState(g);
     });
 
     g.on('noValidMoves', ({ player, roll }) => {
       renderer.showToast(`Rolled ${roll} — No valid moves`, 1200);
       renderer.renderDice(roll, false, false, player.color);
+      saveGameState(g);
+    });
+
+    g.on('autoMoveTriggered', ({ player, roll, move }) => {
+      renderer.showToast(`Forced move: Auto-moving piece`, 800);
     });
 
     g.on('validMovesAvailable', ({ player, roll, validMoves }) => {
@@ -206,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     g.on('moveCompleted', async ({ player, token, capturedTokens, extraTurn, extraReason }) => {
       // Re-cluster tokens on board
-      renderer.updateClusteredTokens(g.players);
+      renderer.updateClusteredTokens(g.players, g.rules.blockades);
 
       if (capturedTokens && capturedTokens.length > 0) {
         if (window.soundController) window.soundController.playCapture();
@@ -220,15 +249,34 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (extraReason === 'rolled_six') {
         renderer.showToast('Rolled a 6! Extra turn', 1200);
       }
+      saveGameState(g);
     });
 
     g.on('bonusTurn', ({ player, reason }) => {
       renderer.updateHUD(player, g.state);
       renderer.renderDice(g.currentRoll || 6, false, !player.isAi, player.color);
+      saveGameState(g);
+    });
+
+    g.on('turnTimerTick', ({ seconds, total }) => {
+      renderer.updateTimer(seconds, total);
+    });
+
+    g.on('turnTimeout', ({ player }) => {
+      renderer.showToast(`${player.name} timed out!`, 1200);
+    });
+
+    g.on('playerAiChanged', ({ player, isAi }) => {
+      renderer.updateHUD(g.getCurrentPlayer(), g.state, g.currentRoll);
+      const isHumanTurn = !g.getCurrentPlayer().isAi && g.state === 'WAITING_ROLL';
+      renderer.renderDice(g.currentRoll || 1, false, isHumanTurn, g.getCurrentPlayer().color);
+      renderer.showToast(isAi ? `${player.name}: AI Auto-Play Enabled` : `${player.name}: Human Control Active`, 1400);
+      saveGameState(g);
     });
 
     g.on('gameOver', ({ winner, rankings }) => {
       if (window.soundController) window.soundController.playWin();
+      clearSavedGameState();
       showVictoryModal(winner, rankings);
     });
   }
@@ -261,8 +309,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  if (diceBox) diceBox.addEventListener('click', handleDiceClick);
-  if (hudBar) hudBar.addEventListener('click', handleDiceClick);
+  // Bind click on all dice boxes
+  document.querySelectorAll('.dice-box').forEach(box => {
+    box.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleDiceClick();
+    });
+  });
+
+  // Bind click on player sections to roll if current human turn
+  document.querySelectorAll('.player-section').forEach(section => {
+    section.addEventListener('click', () => {
+      const color = section.getAttribute('data-color');
+      const cur = game.getCurrentPlayer();
+      if (cur && cur.id === color && !cur.isAi && game.state === 'WAITING_ROLL') {
+        handleDiceClick();
+      }
+    });
+  });
+
   if (rollBtn) rollBtn.addEventListener('click', handleDiceClick);
 
   // Keyboard Shortcuts: Space / Enter to roll dice, 1-4 to move token
@@ -294,6 +359,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedMode = 'ai'; // 'ai' or 'local'
   let selectedPlayerCount = 4; // 2, 3, or 4
   let selectedHumanColor = 'red'; // 'red', 'blue', 'green', 'yellow'
+
+  // Custom Rules & Variations State
+  let selectedBlockades = false;
+  let selectedExitYard = '6';
+  let selectedAutoMove = true;
+  let selectedTimer = 0;
+  let selectedThreeSixes = true;
 
   const aiOptionsPanel = document.getElementById('ai-options-panel');
   const setupSummaryText = document.getElementById('setup-summary-text');
@@ -351,6 +423,131 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Rules Accordion Toggle
+  const rulesAccordionToggle = document.getElementById('rules-accordion-toggle');
+  const rulesAccordionPanel = document.getElementById('rules-accordion-panel');
+  const rulesAccordionArrow = document.getElementById('rules-accordion-arrow');
+
+  if (rulesAccordionToggle && rulesAccordionPanel) {
+    rulesAccordionToggle.addEventListener('click', () => {
+      const isVisible = rulesAccordionPanel.style.display !== 'none';
+      rulesAccordionPanel.style.display = isVisible ? 'none' : 'flex';
+      if (rulesAccordionArrow) rulesAccordionArrow.textContent = isVisible ? '▼' : '▲';
+    });
+  }
+
+  // Blockades Rule Toggle
+  const blockadeBtns = document.querySelectorAll('#blockade-rule-control .segment-btn');
+  blockadeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      blockadeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedBlockades = btn.dataset.val === 'true';
+    });
+  });
+
+  // Exit Base Roll Toggle
+  const exitYardBtns = document.querySelectorAll('#exit-yard-control .segment-btn');
+  exitYardBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      exitYardBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedExitYard = btn.dataset.val;
+    });
+  });
+
+  // Auto-Move Forced Moves Toggle
+  const autoMoveBtns = document.querySelectorAll('#auto-move-control .segment-btn');
+  autoMoveBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      autoMoveBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedAutoMove = btn.dataset.val === 'true';
+    });
+  });
+
+  // Turn Timer Toggle
+  const timerBtns = document.querySelectorAll('#timer-control .segment-btn');
+  timerBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      timerBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedTimer = parseInt(btn.dataset.val, 10);
+    });
+  });
+
+  // Three 6s Penalty Toggle
+  const threeSixesBtns = document.querySelectorAll('#three-sixes-control .segment-btn');
+  threeSixesBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      threeSixesBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedThreeSixes = btn.dataset.val === 'true';
+    });
+  });
+
+  // AI Assist button click
+  if (aiAssistToggleBtn) {
+    aiAssistToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cur = game.getCurrentPlayer();
+      if (!cur) return;
+      game.setPlayerAi(cur.id, !cur.isAi);
+    });
+  }
+
+  // Saved Game Detection and Resuming
+  const resumeBanner = document.getElementById('resume-banner');
+  const resumeDetails = document.getElementById('resume-details');
+  const resumeGameBtn = document.getElementById('resume-game-btn');
+
+  function checkSavedGame() {
+    try {
+      const raw = localStorage.getItem('ludo_saved_game');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data && data.players && data.state !== 'GAME_OVER') {
+        const curPlayer = data.players[data.currentPlayerIndex] || data.players[0];
+        const mode = data.players.filter(p => !p.isAi).length > 1 ? 'Pass & Play' : 'vs AI';
+        if (resumeDetails) {
+          resumeDetails.textContent = `${curPlayer.name}'s turn • ${data.players.length} Players (${mode})`;
+        }
+        if (resumeBanner) {
+          resumeBanner.style.display = 'flex';
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading saved game:', e);
+    }
+  }
+
+  if (resumeGameBtn) {
+    resumeGameBtn.addEventListener('click', () => {
+      try {
+        const raw = localStorage.getItem('ludo_saved_game');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        game = new LudoGame();
+        if (game.loadFromJSON(data)) {
+          attachGameListeners(game);
+          renderer.initPlayerSlots(game.players);
+          closeModal(setupModal);
+          renderer.renderTokens(game.players, game.rules.blockades);
+          const cur = game.getCurrentPlayer();
+          renderer.updateHUD(cur, game.state, game.currentRoll);
+          const isHumanWaiting = !cur.isAi && game.state === 'WAITING_ROLL';
+          renderer.renderDice(game.currentRoll || 1, false, isHumanWaiting, cur.color);
+          if (game.rules.turnTimerSeconds > 0) game.startTurnTimer();
+          renderer.showToast('Game resumed from your device!', 1600);
+          game.checkAiTurn();
+        }
+      } catch (e) {
+        console.error('Failed to resume game:', e);
+      }
+    });
+  }
+
+  checkSavedGame();
   updateSetupSummary();
 
   function startConfiguredGame() {
@@ -414,7 +611,14 @@ document.addEventListener('DOMContentLoaded', () => {
       playerCount: selectedPlayerCount,
       selectedColors: activeColors,
       twoPlayerColors: activeColors.length === 2 ? activeColors : ['red', 'yellow'],
-      playerConfigs
+      playerConfigs,
+      rules: {
+        blockades: selectedBlockades,
+        exitYardOn: selectedExitYard,
+        autoMoveSingle: selectedAutoMove,
+        turnTimerSeconds: selectedTimer,
+        threeSixesPenalty: selectedThreeSixes
+      }
     });
 
     attachGameListeners(game);
@@ -428,7 +632,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Initialize preview board and ALWAYS OPEN SETUP MODAL ON LAUNCH
-  renderer.renderTokens(game.players);
+  renderer.initPlayerSlots(game.players);
+  renderer.renderTokens(game.players, game.rules.blockades);
   renderer.updateHUD(game.getCurrentPlayer(), 'WAITING_ROLL');
   renderer.renderDice(1, false, false, game.getCurrentPlayer().color);
   openModal(setupModal);

@@ -164,6 +164,9 @@ class LudoRenderer {
         <circle cx="300" cy="300" r="8" fill="var(--text-main)" opacity="0.8"/>
       </g>
 
+      <!-- Blockades Layer -->
+      <g id="blockades-layer"></g>
+
       <!-- Highlights / Preview Layer -->
       <g id="preview-layer"></g>
 
@@ -177,7 +180,7 @@ class LudoRenderer {
   /**
    * Render tokens on the board for the current game state
    */
-  renderTokens(players) {
+  renderTokens(players, blockadesEnabled = false) {
     const tokensLayer = this.svg.querySelector('#tokens-layer');
     if (!tokensLayer) return;
 
@@ -203,12 +206,19 @@ class LudoRenderer {
           <text x="0" y="4" text-anchor="middle" font-size="10.5" font-weight="800" fill="#ffffff" font-family="sans-serif">${token.tokenIndex + 1}</text>
         `;
 
+        // Clustered hover-to-front behavior
+        group.addEventListener('mouseenter', () => {
+          if (group.parentNode && !this.isAnimating) {
+            group.parentNode.appendChild(group);
+          }
+        });
+
         tokensLayer.appendChild(group);
         this.tokensMap.set(token.id, group);
       });
     });
 
-    this.updateClusteredTokens(players);
+    this.updateClusteredTokens(players, blockadesEnabled);
   }
 
   /**
@@ -230,8 +240,9 @@ class LudoRenderer {
 
   /**
    * Handles multiple tokens occupying the same square by clustering them neatly
+   * Also renders visual blockade indicators if the blockade rule is enabled
    */
-  updateClusteredTokens(players) {
+  updateClusteredTokens(players, blockadesEnabled = false) {
     const cellGroups = new Map(); // key -> array of tokens
 
     players.forEach(player => {
@@ -241,13 +252,43 @@ class LudoRenderer {
           const cell = path[token.step];
           const key = `cell_${cell.row}_${cell.col}`;
           if (!cellGroups.has(key)) cellGroups.set(key, []);
-          cellGroups.get(key).push({ player, token, baseCx: cell.cx, baseCy: cell.cy });
+          cellGroups.get(key).push({ player, token, baseCx: cell.cx, baseCy: cell.cy, isTrack: token.status === 'track' });
         }
       });
     });
 
+    const blockadesLayer = this.svg.querySelector('#blockades-layer');
+    if (blockadesLayer) blockadesLayer.innerHTML = '';
+
     // Apply offset offsets for stacked pieces
     cellGroups.forEach(group => {
+      // Check blockade rendering: 2+ tokens of same color on track
+      if (blockadesEnabled && blockadesLayer) {
+        const playerCounts = {};
+        group.forEach(item => {
+          if (item.isTrack) {
+            playerCounts[item.player.id] = (playerCounts[item.player.id] || 0) + 1;
+          }
+        });
+
+        Object.entries(playerCounts).forEach(([pId, count]) => {
+          if (count >= 2) {
+            const first = group.find(item => item.player.id === pId);
+            const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            ring.setAttribute('cx', first.baseCx);
+            ring.setAttribute('cy', first.baseCy);
+            ring.setAttribute('r', '19.5');
+            ring.setAttribute('fill', 'none');
+            ring.setAttribute('stroke', first.player.color);
+            ring.setAttribute('stroke-width', '2.5');
+            ring.setAttribute('stroke-dasharray', '5 3');
+            ring.setAttribute('class', 'blockade-indicator');
+            ring.innerHTML = `<title>Blockade formed by ${first.player.name}</title>`;
+            blockadesLayer.appendChild(ring);
+          }
+        });
+      }
+
       if (group.length === 1) {
         const item = group[0];
         const el = this.tokensMap.get(item.token.id);
@@ -286,6 +327,11 @@ class LudoRenderer {
 
       el.classList.add('can-move');
 
+      // Bring movable token to the front of SVG so it is easily clickable even in clusters
+      if (el.parentNode) {
+        el.parentNode.appendChild(el);
+      }
+
       const clickHandler = (e) => {
         e.stopPropagation();
         this.clearHighlights();
@@ -294,6 +340,7 @@ class LudoRenderer {
       };
 
       const hoverEnterHandler = () => {
+        if (el.parentNode) el.parentNode.appendChild(el);
         this.showPreviewGhost(move);
       };
 
@@ -408,8 +455,8 @@ class LudoRenderer {
   /**
    * Renders the 3D-styled animated dice widget
    */
-  renderDice(value, isRolling, canRoll, activeColor) {
-    const diceBox = this.ui.diceBox;
+  renderDice(value, isRolling = false, canRoll = true, activeColor = null) {
+    const diceBox = this.ui.diceBox || document.querySelector('.player-section.active .dice-box') || document.querySelector('.dice-box');
     const rollBtn = this.ui.rollBtn;
 
     if (!diceBox) return;
@@ -439,7 +486,7 @@ class LudoRenderer {
       diceBox.classList.remove('rolling');
     }
 
-    // Update pips layout (1-6)
+    // Update pips layout (1-6) on the active dice box
     const pips = diceBox.querySelectorAll('.dice-pip');
     pips.forEach(p => p.classList.remove('visible'));
 
@@ -475,87 +522,128 @@ class LudoRenderer {
   }
 
   /**
-   * Sets HUD position and player color classes
-   * Red on top, Green on the right, Yellow on the bottom, Blue on the left.
+   * Shows only the slots for players in the current game.
+   * Keeps grid layout balanced (Red top, Green right, Yellow bottom, Blue left).
    */
-  setHUDPosition(playerId) {
-    const arena = this.ui.gameArena;
+  initPlayerSlots(players) {
+    const allColors = ['red', 'green', 'yellow', 'blue'];
+    allColors.forEach(color => {
+      const slot = document.getElementById(`player-slot-${color}`);
+      if (!slot) return;
+      const playerObj = players.find(p => p.id === color);
+      if (playerObj) {
+        slot.style.visibility = 'visible';
+        slot.style.pointerEvents = 'auto';
+        const nameEl = slot.querySelector('.player-name');
+        if (nameEl) nameEl.textContent = playerObj.name;
+        const typeEl = slot.querySelector('.player-type-tag');
+        if (typeEl) typeEl.textContent = playerObj.isAi ? 'Bot' : 'You';
+      } else {
+        slot.style.visibility = 'hidden';
+        slot.style.pointerEvents = 'none';
+      }
+      slot.classList.remove('active', 'finished');
+    });
+  }
+
+  /**
+   * Highlights the active player slot, dims all others.
+   * Permanently fixed positions: board never moves.
+   */
+  setActivePlayerSlot(playerId) {
+    const allColors = ['red', 'green', 'yellow', 'blue'];
+    allColors.forEach(color => {
+      const slot = document.getElementById(`player-slot-${color}`);
+      if (!slot) return;
+      const dBox = slot.querySelector('.dice-box');
+      if (color === playerId) {
+        slot.classList.add('active');
+        if (dBox) this.ui.diceBox = dBox;
+      } else {
+        slot.classList.remove('active');
+        if (dBox) dBox.classList.remove('can-roll', 'rolling');
+      }
+    });
+
     const hudBar = this.ui.hudBar;
-    if (!arena || !hudBar) return;
-
-    const SIDE_MAP = {
-      red: 'top',
-      green: 'right',
-      yellow: 'bottom',
-      blue: 'left'
-    };
-
-    const LABEL_MAP = {
-      red: 'TOP',
-      green: 'RIGHT',
-      yellow: 'BOTTOM',
-      blue: 'LEFT'
-    };
-
-    const side = SIDE_MAP[playerId] || 'top';
-
-    // Remove existing position/player classes
-    ['pos-top', 'pos-right', 'pos-bottom', 'pos-left'].forEach(cls => {
-      arena.classList.remove(cls);
-      hudBar.classList.remove(cls);
-    });
-
-    ['player-red', 'player-green', 'player-yellow', 'player-blue'].forEach(cls => {
-      arena.classList.remove(cls);
-      hudBar.classList.remove(cls);
-    });
-
-    // Add new position and player classes
-    arena.classList.add(`pos-${side}`, `player-${playerId}`);
-    hudBar.classList.add(`pos-${side}`, `player-${playerId}`);
-    arena.dataset.position = side;
-    arena.dataset.player = playerId;
-    hudBar.dataset.position = side;
-    hudBar.dataset.player = playerId;
-
-    const sideTag = this.ui.playerSideTag;
-    if (sideTag) {
-      sideTag.textContent = LABEL_MAP[playerId] || side.toUpperCase();
+    if (hudBar) {
+      ['player-red', 'player-green', 'player-yellow', 'player-blue'].forEach(cls => hudBar.classList.remove(cls));
+      hudBar.classList.add(`player-${playerId}`);
     }
   }
 
   /**
-   * Updates HUD active player status pill and position
+   * Mark a player's slot as finished
+   */
+  markPlayerFinished(playerId) {
+    const slot = document.getElementById(`player-slot-${playerId}`);
+    if (slot) slot.classList.add('finished');
+  }
+
+  /**
+   * Updates HUD active player — only changes active slot highlight, no layout reflow.
    */
   updateHUD(player, state, roll = null) {
     if (!player) return;
 
-    this.setHUDPosition(player.id);
+    // Just highlight the right slot — no repositioning
+    this.setActivePlayerSlot(player.id);
 
+    // Keep legacy dot updated (used by some logic checks)
     const dot = this.ui.playerDot;
-    const name = this.ui.playerName;
-    const tag = this.ui.playerTypeTag;
-    const hint = this.ui.turnActionHint;
-
     if (dot) {
       dot.style.backgroundColor = player.color;
       dot.style.color = player.color;
     }
-    if (name) name.textContent = player.name;
-    if (tag) tag.textContent = player.isAi ? 'COMPUTER' : 'HUMAN';
 
-    if (hint) {
-      if (state === 'WAITING_ROLL') {
-        hint.textContent = player.isAi ? 'Rolling dice...' : 'Your turn: Roll the dice';
-      } else if (state === 'WAITING_MOVE') {
-        hint.textContent = player.isAi ? 'Moving piece...' : `Rolled ${roll}! Select a piece`;
-      } else if (state === 'MOVING') {
-        hint.textContent = 'Moving...';
-      } else if (state === 'SKIPPED') {
-        hint.textContent = '3rd Six! Move skipped';
-      } else if (state === 'GAME_OVER') {
-        hint.textContent = 'Game Complete!';
+    this.updateAiToggle(player.isAi);
+  }
+
+  /**
+   * Updates turn countdown timer indicator on the active player section
+   */
+  updateTimer(seconds, total) {
+    const allBadges = document.querySelectorAll('.turn-timer-badge');
+    if (!total || total <= 0 || seconds === null || seconds === undefined) {
+      allBadges.forEach(b => b.style.display = 'none');
+      return;
+    }
+
+    const activeSlot = document.querySelector('.player-section.active');
+    const timerBadge = activeSlot ? activeSlot.querySelector('.turn-timer-badge') : this.ui.turnTimerBadge;
+
+    allBadges.forEach(b => {
+      if (b !== timerBadge) {
+        b.style.display = 'none';
+        b.classList.remove('urgent');
       }
+    });
+
+    if (timerBadge) {
+      timerBadge.style.display = 'inline-flex';
+      timerBadge.textContent = `${seconds}s`;
+
+      if (seconds <= 3) {
+        timerBadge.classList.add('urgent');
+      } else {
+        timerBadge.classList.remove('urgent');
+      }
+    }
+  }
+
+  /**
+   * Updates AI Assist toggle button state on HUD
+   */
+  updateAiToggle(isAi) {
+    const aiBtn = this.ui.aiAssistToggleBtn;
+    if (!aiBtn) return;
+
+    if (isAi) {
+      aiBtn.classList.add('active');
+      aiBtn.setAttribute('title', 'AI is playing this turn. Click to take over control');
+    } else {
+      aiBtn.classList.remove('active');
+      aiBtn.setAttribute('title', 'Click to let AI take over this turn');
     }
   }
 }

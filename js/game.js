@@ -14,10 +14,21 @@ class LudoGame {
     this.consecutiveSixes = 0;
     this.currentRoll = null;
     this.validMoves = [];
-    this.state = 'INIT'; // INIT, WAITING_ROLL, ROLLING, WAITING_MOVE, MOVING, GAME_OVER
+    this.state = 'INIT'; // INIT, WAITING_ROLL, ROLLING, WAITING_MOVE, MOVING, NO_MOVES, SKIPPED, GAME_OVER
     this.rankings = [];
     this.listeners = {};
     this.moveInProgress = false;
+    this.turnTimerInterval = null;
+    this.turnTimeRemaining = 0;
+
+    this.rules = {
+      blockades: false,
+      exitYardOn: '6', // '6' or '1_or_6'
+      threeSixesPenalty: true,
+      autoMoveSingle: true,
+      turnTimerSeconds: 0, // 0 = off, 15, 30
+      ...(config.rules || {})
+    };
 
     this.configure(config);
   }
@@ -27,8 +38,13 @@ class LudoGame {
    * @param {Object} config
    *   - playerCount: 2, 3, or 4
    *   - playerConfigs: array of { id, isAi, difficulty, name }
+   *   - rules: custom rule settings
    */
   configure(config = {}) {
+    if (config.rules) {
+      this.rules = { ...this.rules, ...config.rules };
+    }
+
     const playerCount = config.playerCount || 4;
     let selectedColors = config.selectedColors;
 
@@ -75,6 +91,7 @@ class LudoGame {
     this.rankings = [];
     this.state = 'WAITING_ROLL';
     this.moveInProgress = false;
+    this.clearTurnTimer();
   }
 
   /**
@@ -103,11 +120,55 @@ class LudoGame {
       players: this.players,
       currentPlayer: this.getCurrentPlayer()
     });
+    this.startTurnTimer();
     this.checkAiTurn();
   }
 
   getCurrentPlayer() {
     return this.players[this.currentPlayerIndex];
+  }
+
+  /**
+   * Checks if a specific path step is blocked by an opponent blockade (2+ opponent tokens)
+   */
+  isStepBlockedByOpponent(player, step) {
+    if (!this.rules.blockades) return false;
+    if (step >= 51 || step < 0) return false; // Home stretch is private and cannot have opponents
+    const paths = getGlobalPaths();
+    const cell = paths[player.id] ? paths[player.id][step] : null;
+    if (!cell) return false;
+    const trackIndex = cell.trackIndex;
+
+    for (const otherPlayer of this.players) {
+      if (otherPlayer.id === player.id || !otherPlayer.active) continue;
+      let countOnCell = 0;
+      for (const otherToken of otherPlayer.tokens) {
+        if (otherToken.status === 'track') {
+          const otherCell = paths[otherPlayer.id] ? paths[otherPlayer.id][otherToken.step] : null;
+          if (otherCell && otherCell.trackIndex === trackIndex) {
+            countOnCell++;
+          }
+        }
+      }
+      if (countOnCell >= 2) {
+        return true; // Blocked by opponent's blockade!
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Checks if an entire movement path is blocked by any opponent blockade
+   */
+  isPathBlockedByOpponent(player, currentStep, targetStep) {
+    if (!this.rules.blockades) return false;
+    const start = Math.max(0, currentStep + 1);
+    for (let s = start; s <= targetStep; s++) {
+      if (this.isStepBlockedByOpponent(player, s)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -137,7 +198,8 @@ class LudoGame {
     });
 
     // Rule: 3 consecutive sixes skips move and passes turn
-    if (this.consecutiveSixes >= 3) {
+    if (this.rules.threeSixesPenalty && this.consecutiveSixes >= 3) {
+      this.clearTurnTimer();
       this.state = 'SKIPPED';
       this.validMoves = [];
       this.consecutiveSixes = 0;
@@ -153,18 +215,28 @@ class LudoGame {
     this.validMoves = validMoves;
 
     if (validMoves.length === 0) {
-      this.state = 'WAITING_MOVE';
+      this.clearTurnTimer();
+      this.state = 'NO_MOVES';
       this.emit('noValidMoves', { player, roll });
       setTimeout(() => {
         this.nextTurn();
       }, 1100);
     } else {
       this.state = 'WAITING_MOVE';
+      this.startTurnTimer(); // Reset timer for move decision
       this.emit('validMovesAvailable', { player, roll, validMoves });
 
       // If current player is AI, schedule automated move
       if (player.isAi) {
         this.handleAiMove(player, roll, validMoves);
+      } else if (validMoves.length === 1 && this.rules.autoMoveSingle) {
+        // Forced move: auto-move single legal move after brief delay to avoid stalling
+        this.emit('autoMoveTriggered', { player, roll, move: validMoves[0] });
+        setTimeout(() => {
+          if (this.state === 'WAITING_MOVE' && this.getCurrentPlayer().id === player.id) {
+            this.makeMove(validMoves[0].tokenIndex);
+          }
+        }, 550);
       }
     }
 
@@ -176,18 +248,22 @@ class LudoGame {
    */
   calculateValidMoves(player, roll) {
     const moves = [];
+    const canExitYard = (this.rules.exitYardOn === '1_or_6') ? (roll === 6 || roll === 1) : (roll === 6);
 
     player.tokens.forEach(token => {
-      // 1. Token in yard: requires a 6 to enter step 0
+      // 1. Token in yard: requires 6 (or 1 if 1_or_6 configured) to enter step 0
       if (token.status === 'yard') {
-        if (roll === 6) {
-          moves.push({
-            token,
-            tokenIndex: token.tokenIndex,
-            currentStep: -1,
-            targetStep: 0,
-            type: 'exit_yard'
-          });
+        if (canExitYard) {
+          // If blockades enabled, cannot exit onto an opponent's blockade
+          if (!this.isStepBlockedByOpponent(player, 0)) {
+            moves.push({
+              token,
+              tokenIndex: token.tokenIndex,
+              currentStep: -1,
+              targetStep: 0,
+              type: 'exit_yard'
+            });
+          }
         }
       } 
       // 2. Token already on track or home column
@@ -195,13 +271,16 @@ class LudoGame {
         const targetStep = token.step + roll;
         // Exactly reaches finish or within home stretch
         if (targetStep <= 56) {
-          moves.push({
-            token,
-            tokenIndex: token.tokenIndex,
-            currentStep: token.step,
-            targetStep: targetStep,
-            type: targetStep === 56 ? 'finish' : (targetStep >= 51 ? 'home_column' : 'track')
-          });
+          // If blockades enabled, path or destination cannot be impassable
+          if (!this.isPathBlockedByOpponent(player, token.step, targetStep)) {
+            moves.push({
+              token,
+              tokenIndex: token.tokenIndex,
+              currentStep: token.step,
+              targetStep: targetStep,
+              type: targetStep === 56 ? 'finish' : (targetStep >= 51 ? 'home_column' : 'track')
+            });
+          }
         }
         // If targetStep > 56: overshoot, illegal move
       }
@@ -342,6 +421,7 @@ class LudoGame {
           lastPlayer.rank = this.rankings.length;
         }
 
+        this.clearTurnTimer();
         this.state = 'GAME_OVER';
         this.moveInProgress = false;
         this.emit('gameOver', {
@@ -365,6 +445,7 @@ class LudoGame {
     // Next turn or repeat turn
     if (extraTurn && !player.finished) {
       this.state = 'WAITING_ROLL';
+      this.startTurnTimer();
       this.emit('bonusTurn', { player, reason: extraReason });
       this.checkAiTurn();
     } else {
@@ -390,12 +471,137 @@ class LudoGame {
     this.state = 'WAITING_ROLL';
     const nextPlayer = this.getCurrentPlayer();
 
+    this.startTurnTimer();
+
     this.emit('turnChanged', {
       player: nextPlayer,
       playerIndex: this.currentPlayerIndex
     });
 
     this.checkAiTurn();
+  }
+
+  /**
+   * Turn countdown timer management
+   */
+  startTurnTimer() {
+    this.clearTurnTimer();
+    if (!this.rules.turnTimerSeconds || this.rules.turnTimerSeconds <= 0) return;
+    if (this.state === 'GAME_OVER') return;
+
+    this.turnTimeRemaining = this.rules.turnTimerSeconds;
+    this.emit('turnTimerTick', {
+      seconds: this.turnTimeRemaining,
+      total: this.rules.turnTimerSeconds,
+      player: this.getCurrentPlayer()
+    });
+
+    this.turnTimerInterval = setInterval(() => {
+      this.turnTimeRemaining--;
+      this.emit('turnTimerTick', {
+        seconds: this.turnTimeRemaining,
+        total: this.rules.turnTimerSeconds,
+        player: this.getCurrentPlayer()
+      });
+
+      if (this.turnTimeRemaining <= 0) {
+        this.clearTurnTimer();
+        this.handleTurnTimeout();
+      }
+    }, 1000);
+  }
+
+  clearTurnTimer() {
+    if (this.turnTimerInterval) {
+      clearInterval(this.turnTimerInterval);
+      this.turnTimerInterval = null;
+    }
+  }
+
+  handleTurnTimeout() {
+    if (this.state === 'GAME_OVER' || this.moveInProgress) return;
+    const player = this.getCurrentPlayer();
+    this.emit('turnTimeout', { player });
+
+    if (this.state === 'WAITING_ROLL') {
+      this.rollDice();
+    } else if (this.state === 'WAITING_MOVE') {
+      if (this.validMoves.length > 0) {
+        const aiEngine = getGlobalAI();
+        const selected = aiEngine
+          ? aiEngine.selectMove(player, this.currentRoll, this.validMoves, this, 'medium')
+          : this.validMoves[0];
+        if (selected) {
+          this.makeMove(selected.tokenIndex);
+        }
+      } else {
+        this.nextTurn();
+      }
+    }
+  }
+
+  /**
+   * Toggle AI Takeover / Auto-play for any player
+   */
+  setPlayerAi(playerId, isAi) {
+    const player = this.players.find(p => p.id === playerId);
+    if (player) {
+      player.isAi = isAi;
+      this.emit('playerAiChanged', { player, isAi });
+
+      if (isAi && this.getCurrentPlayer().id === playerId) {
+        if (this.state === 'WAITING_ROLL') {
+          this.checkAiTurn();
+        } else if (this.state === 'WAITING_MOVE' && this.validMoves.length > 0) {
+          this.handleAiMove(player, this.currentRoll, this.validMoves);
+        }
+      }
+    }
+  }
+
+  /**
+   * Serialize game state for local persistence and reconnects
+   */
+  toJSON() {
+    return {
+      version: 1,
+      timestamp: Date.now(),
+      rules: { ...this.rules },
+      players: this.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        isAi: p.isAi,
+        difficulty: p.difficulty,
+        active: p.active,
+        finished: p.finished,
+        rank: p.rank,
+        tokens: p.tokens.map(t => ({ ...t }))
+      })),
+      currentPlayerIndex: this.currentPlayerIndex,
+      consecutiveSixes: this.consecutiveSixes,
+      currentRoll: this.currentRoll,
+      state: this.state,
+      rankings: this.rankings.map(p => p.id)
+    };
+  }
+
+  /**
+   * Restore game state from persisted JSON
+   */
+  loadFromJSON(data) {
+    if (!data || !data.players || !Array.isArray(data.players)) return false;
+    this.rules = { ...this.rules, ...(data.rules || {}) };
+    this.players = data.players;
+    this.currentPlayerIndex = data.currentPlayerIndex || 0;
+    this.consecutiveSixes = data.consecutiveSixes || 0;
+    this.currentRoll = data.currentRoll || null;
+    this.state = data.state === 'GAME_OVER' ? 'GAME_OVER' : 'WAITING_ROLL';
+    this.rankings = (data.rankings || []).map(id => this.players.find(p => p.id === id)).filter(Boolean);
+    this.moveInProgress = false;
+    this.validMoves = [];
+    this.clearTurnTimer();
+    return true;
   }
 
   /**

@@ -1,5 +1,25 @@
 node_modules/
+
+# OS artifacts
 .DS_Store
+Thumbs.db
+
+# Screenshot artifacts
 *.png.tmp
 Minimal-Ludo-*.png
+
+# Deployment
 .vercel
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+*.log
+
+# Editor dirs
+.vscode/
+.idea/

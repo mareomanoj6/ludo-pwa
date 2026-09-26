@@ -5,7 +5,8 @@
   "scripts": {
     "build": "echo 'Static build ready'",
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node test-rules.js"
   },
   "keywords": ["ludo", "board-game", "pwa", "offline", "ai"],
   "license": "MIT"

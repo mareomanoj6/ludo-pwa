@@ -92,6 +92,11 @@
           </svg>
         </button>
 
+        <!-- AI Assist Button -->
+        <button id="ai-assist-toggle-btn" class="icon-btn ai-assist-btn" title="Toggle AI Auto-Play for current turn" aria-label="Toggle AI">
+          <span class="ai-icon">🤖</span>
+        </button>
+
         <!-- Sound Toggle Button -->
         <button id="sound-toggle-btn" class="icon-btn" title="Toggle Sound Effects" aria-label="Toggle Sound">
           <span id="sound-icon"></span>
@@ -106,11 +111,18 @@
 
     <!-- Main Game Section -->
     <main class="main-content">
-      <div id="game-arena" class="game-arena pos-top player-red" data-position="top" data-player="red">
-        <!-- HUD Bar: Active Player Color Dot + Animated Dice Button -->
-        <div id="hud-bar" class="hud-bar pos-top player-red" data-position="top" data-player="red" title="Click to roll dice">
-          <div id="player-dot" class="player-dot" title="Current Player"></div>
-          <div id="dice-box" class="dice-box can-roll" role="button" tabindex="0" title="Click or press Spacebar to roll" aria-label="Roll dice">
+      <div id="game-arena" class="game-arena">
+
+        <!-- Top Section: RED -->
+        <div id="player-slot-red" class="player-section section-top" data-color="red" role="button" tabindex="0" title="Red Player">
+          <div class="player-section-meta">
+            <div class="hud-slot-dot" style="background:#ef4444;"></div>
+            <div class="player-info-text">
+              <span class="player-name">Red</span>
+              <span class="player-type-tag">You</span>
+            </div>
+          </div>
+          <div class="dice-box can-roll" id="dice-box-red" role="button" tabindex="0" title="Click or Spacebar to roll" aria-label="Red Roll Dice">
             <div class="dice-face">
               <span class="dice-pip"></span>
               <span class="dice-pip"></span>
@@ -122,10 +134,36 @@
               <span class="dice-pip"></span>
               <span class="dice-pip"></span>
             </div>
+            <div class="turn-timer-badge" style="display:none;" title="Turn Time Remaining">15s</div>
           </div>
         </div>
 
-        <!-- Board Wrapper -->
+        <!-- Left Section: BLUE -->
+        <div id="player-slot-blue" class="player-section section-left" data-color="blue" role="button" tabindex="0" title="Blue Player">
+          <div class="player-section-meta">
+            <div class="hud-slot-dot" style="background:#3b82f6;"></div>
+            <div class="player-info-text">
+              <span class="player-name">Blue</span>
+              <span class="player-type-tag">Bot</span>
+            </div>
+          </div>
+          <div class="dice-box" id="dice-box-blue" role="button" tabindex="0" title="Blue Roll Dice" aria-label="Blue Roll Dice">
+            <div class="dice-face">
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip visible"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+            </div>
+            <div class="turn-timer-badge" style="display:none;" title="Turn Time Remaining">15s</div>
+          </div>
+        </div>
+
+        <!-- Board Wrapper — fixed in center, never moves -->
         <div class="board-container">
           <!-- Floating Toast Notification -->
           <div id="game-toast" class="game-toast">Ready!</div>
@@ -133,8 +171,60 @@
           <!-- 600x600 Scalable Vector Graphics Board -->
           <svg id="ludo-board-svg" class="ludo-svg-board" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
+
+        <!-- Right Section: GREEN -->
+        <div id="player-slot-green" class="player-section section-right" data-color="green" role="button" tabindex="0" title="Green Player">
+          <div class="player-section-meta">
+            <div class="hud-slot-dot" style="background:#10b981;"></div>
+            <div class="player-info-text">
+              <span class="player-name">Green</span>
+              <span class="player-type-tag">Bot</span>
+            </div>
+          </div>
+          <div class="dice-box" id="dice-box-green" role="button" tabindex="0" title="Green Roll Dice" aria-label="Green Roll Dice">
+            <div class="dice-face">
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip visible"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+            </div>
+            <div class="turn-timer-badge" style="display:none;" title="Turn Time Remaining">15s</div>
+          </div>
+        </div>
+
+        <!-- Bottom Section: YELLOW -->
+        <div id="player-slot-yellow" class="player-section section-bottom" data-color="yellow" role="button" tabindex="0" title="Yellow Player">
+          <div class="player-section-meta">
+            <div class="hud-slot-dot" style="background:#f59e0b;"></div>
+            <div class="player-info-text">
+              <span class="player-name">Yellow</span>
+              <span class="player-type-tag">Bot</span>
+            </div>
+          </div>
+          <div class="dice-box" id="dice-box-yellow" role="button" tabindex="0" title="Yellow Roll Dice" aria-label="Yellow Roll Dice">
+            <div class="dice-face">
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip visible"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+              <span class="dice-pip"></span>
+            </div>
+            <div class="turn-timer-badge" style="display:none;" title="Turn Time Remaining">15s</div>
+          </div>
+        </div>
+
       </div>
     </main>
+
   </div>
 
   <!-- MODAL: New Game Setup -->
@@ -150,6 +240,18 @@
         </button>
       </div>
       <div class="modal-body">
+        <!-- Resume Saved Game Banner (shown if an in-progress game was saved) -->
+        <div id="resume-banner" class="resume-game-card" style="display:none;">
+          <div class="resume-meta">
+            <span class="resume-icon">💾</span>
+            <div>
+              <strong style="font-size:0.9rem;">Resume Previous Game</strong>
+              <p id="resume-details" class="resume-text">Saved game in progress</p>
+            </div>
+          </div>
+          <button id="resume-game-btn" type="button" class="primary-btn resume-btn">Resume</button>
+        </div>
+
         <!-- Step 1: Mode Selection (AI or Other Users) -->
         <div class="form-group">
           <label class="form-label">1. Choose Game Mode</label>
@@ -201,6 +303,79 @@
               <span class="slot-dot" style="background:#f59e0b;"></span>
               <span>Yellow</span>
             </button>
+          </div>
+        </div>
+
+        <!-- Collapsible Rules & Variations Accordion -->
+        <div class="rules-accordion">
+          <button type="button" class="rules-accordion-header" id="rules-accordion-toggle">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span>⚙️</span>
+              <span style="font-weight:700; font-size:0.85rem;">Rules & Variations</span>
+            </div>
+            <span id="rules-accordion-arrow" class="accordion-arrow">▼</span>
+          </button>
+          <div id="rules-accordion-panel" class="rules-accordion-content" style="display:none;">
+            <!-- Blockades Rule -->
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Blockades (Doubling)</span>
+                <span class="setting-desc">2 same-color tokens form an impassable barrier</span>
+              </div>
+              <div class="segmented-control mini" id="blockade-rule-control">
+                <button type="button" class="segment-btn active" data-val="false">Off</button>
+                <button type="button" class="segment-btn" data-val="true">On</button>
+              </div>
+            </div>
+
+            <!-- Exit Yard On -->
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Exit Base Roll</span>
+                <span class="setting-desc">Dice roll required to enter active track</span>
+              </div>
+              <div class="segmented-control mini" id="exit-yard-control">
+                <button type="button" class="segment-btn active" data-val="6">6 Only</button>
+                <button type="button" class="segment-btn" data-val="1_or_6">1 or 6</button>
+              </div>
+            </div>
+
+            <!-- Auto-Move Single Token -->
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Auto-Move Forced Turns</span>
+                <span class="setting-desc">Instantly play when only 1 move is legal</span>
+              </div>
+              <div class="segmented-control mini" id="auto-move-control">
+                <button type="button" class="segment-btn active" data-val="true">On</button>
+                <button type="button" class="segment-btn" data-val="false">Off</button>
+              </div>
+            </div>
+
+            <!-- Turn Timer -->
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Turn Timer</span>
+                <span class="setting-desc">Countdown per turn before auto-move</span>
+              </div>
+              <div class="segmented-control mini" id="timer-control">
+                <button type="button" class="segment-btn active" data-val="0">Off</button>
+                <button type="button" class="segment-btn" data-val="15">15s</button>
+                <button type="button" class="segment-btn" data-val="30">30s</button>
+              </div>
+            </div>
+
+            <!-- Three 6s Penalty -->
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-title">Three 6s Penalty</span>
+                <span class="setting-desc">3rd consecutive six nullifies roll and skips turn</span>
+              </div>
+              <div class="segmented-control mini" id="three-sixes-control">
+                <button type="button" class="segment-btn active" data-val="true">On</button>
+                <button type="button" class="segment-btn" data-val="false">Off</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -257,48 +432,50 @@
           <div class="rule-item">
             <span class="rule-icon">🎲</span>
             <div class="rule-desc">
-              <strong>Exit Yard on a 6</strong>
-              <p>Tokens remain in the base yard until a 6 is rolled. Rolling a 6 also grants an immediate bonus turn.
-              </p>
+              <strong>Entering the Board & Bonus Turns</strong>
+              <p>Tokens remain in the base yard until a 6 is rolled (or 1/6 if configured). Rolling a 6 grants an immediate extra roll. Capturing an opponent or reaching Home also grants a bonus roll (bonuses do not stack infinitely).</p>
             </div>
           </div>
           <div class="rule-item">
             <span class="rule-icon">🛑</span>
             <div class="rule-desc">
               <strong>Three Sixes Rule</strong>
-              <p>If a player or AI rolls 2 sixes, and then rolls a 3rd six, their move is skipped and their turn ends
-                immediately.</p>
+              <p>If a player rolls three 6s in a row, the 3rd roll is nullified and the turn immediately ends. Moves made on the first two 6s are preserved.</p>
             </div>
           </div>
           <div class="rule-item">
             <span class="rule-icon">⭐</span>
             <div class="rule-desc">
-              <strong>Safe Cells</strong>
-              <p>Cells marked with a star symbol and starting colored squares are safe zones. Pieces cannot be captured
-                while resting on safe cells.</p>
+              <strong>Safe Zones & Coexistence</strong>
+              <p>The 4 colored starting squares and the 4 star-marked cells are safe zones. Opponents cannot be captured on safe cells and can safely coexist simultaneously.</p>
             </div>
           </div>
           <div class="rule-item">
             <span class="rule-icon">⚔️</span>
             <div class="rule-desc">
               <strong>Capturing Opponents</strong>
-              <p>Landing on an opponent's piece on an unsafe cell captures it and sends it back to its yard. You receive
-                a bonus roll!</p>
+              <p>Landing on an opponent's token on any regular track cell captures it and sends it back to its starting yard. You receive 1 bonus roll!</p>
             </div>
           </div>
           <div class="rule-item">
             <span class="rule-icon">🛡️</span>
             <div class="rule-desc">
-              <strong>No Blockades</strong>
-              <p>Tokens of the same color can share cells without blocking anyone from passing through.</p>
+              <strong>Blockades / Doubling (Configurable)</strong>
+              <p>When Blockades are enabled in Settings, 2 tokens of the same color on a square form an impassable barrier that opponents cannot pass or land on.</p>
             </div>
           </div>
           <div class="rule-item">
             <span class="rule-icon">🏆</span>
             <div class="rule-desc">
-              <strong>Exact Roll to Finish</strong>
-              <p>Tokens navigate around the perimeter, enter their private colored home column, and require an exact
-                roll to enter the Center Finish.</p>
+              <strong>Home Column & Exact Finish</strong>
+              <p>Tokens must complete a full clockwise circuit before turning into their colored home stretch. Reaching the center Home finish requires an exact dice roll.</p>
+            </div>
+          </div>
+          <div class="rule-item">
+            <span class="rule-icon">🥇</span>
+            <div class="rule-desc">
+              <strong>Podium Rankings & Auto-Save</strong>
+              <p>When a player finishes, play continues for 2nd and 3rd place! Game progress is automatically saved to your device so you can resume anytime.</p>
             </div>
           </div>
         </div>
