@@ -262,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (diceBox) diceBox.addEventListener('click', handleDiceClick);
+  if (hudBar) hudBar.addEventListener('click', handleDiceClick);
   if (rollBtn) rollBtn.addEventListener('click', handleDiceClick);
 
   // Keyboard Shortcuts: Space / Enter to roll dice, 1-4 to move token
