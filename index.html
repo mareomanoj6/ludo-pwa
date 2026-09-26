@@ -106,45 +106,48 @@
 
     <!-- Main Game Section -->
     <main class="main-content">
-      <!-- HUD Bar: Active Player + 3D Dice -->
-      <div class="hud-bar">
-        <div class="player-status-pill">
-          <div id="player-dot" class="player-dot"></div>
-          <div class="player-info">
-            <div class="player-name-row">
-              <span id="player-name" class="player-name">Red</span>
-              <span id="player-type-tag" class="player-type-tag">Human</span>
+      <div id="game-arena" class="game-arena pos-top player-red" data-position="top" data-player="red">
+        <!-- HUD Bar: Active Player + 3D Dice -->
+        <div id="hud-bar" class="hud-bar pos-top player-red" data-position="top" data-player="red">
+          <div class="player-status-pill">
+            <div id="player-dot" class="player-dot"></div>
+            <div class="player-info">
+              <div class="player-name-row">
+                <span id="player-name" class="player-name">Red</span>
+                <span id="player-type-tag" class="player-type-tag">Human</span>
+                <span id="player-side-tag" class="player-side-tag">TOP</span>
+              </div>
+              <span id="turn-action-hint" class="turn-action-hint">Your turn: Roll the dice</span>
             </div>
-            <span id="turn-action-hint" class="turn-action-hint">Your turn: Roll the dice</span>
+          </div>
+
+          <!-- Animated Dice Widget -->
+          <div class="dice-widget">
+            <div id="dice-box" class="dice-box can-roll" title="Click or press Spacebar to roll">
+              <div class="dice-face">
+                <span class="dice-pip"></span>
+                <span class="dice-pip"></span>
+                <span class="dice-pip"></span>
+                <span class="dice-pip"></span>
+                <span class="dice-pip visible"></span>
+                <span class="dice-pip"></span>
+                <span class="dice-pip"></span>
+                <span class="dice-pip"></span>
+                <span class="dice-pip"></span>
+              </div>
+            </div>
+            <button id="roll-btn" class="roll-btn">ROLL</button>
           </div>
         </div>
 
-        <!-- Animated Dice Widget -->
-        <div class="dice-widget">
-          <div id="dice-box" class="dice-box can-roll" title="Click or press Spacebar to roll">
-            <div class="dice-face">
-              <span class="dice-pip"></span>
-              <span class="dice-pip"></span>
-              <span class="dice-pip"></span>
-              <span class="dice-pip"></span>
-              <span class="dice-pip visible"></span>
-              <span class="dice-pip"></span>
-              <span class="dice-pip"></span>
-              <span class="dice-pip"></span>
-              <span class="dice-pip"></span>
-            </div>
-          </div>
-          <button id="roll-btn" class="roll-btn">ROLL</button>
+        <!-- Board Wrapper -->
+        <div class="board-container">
+          <!-- Floating Toast Notification -->
+          <div id="game-toast" class="game-toast">Ready!</div>
+
+          <!-- 600x600 Scalable Vector Graphics Board -->
+          <svg id="ludo-board-svg" class="ludo-svg-board" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
-      </div>
-
-      <!-- Board Wrapper -->
-      <div class="board-container">
-        <!-- Floating Toast Notification -->
-        <div id="game-toast" class="game-toast">Ready!</div>
-
-        <!-- 600x600 Scalable Vector Graphics Board -->
-        <svg id="ludo-board-svg" class="ludo-svg-board" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
     </main>
   </div>

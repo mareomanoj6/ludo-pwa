@@ -56,6 +56,9 @@
 
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
+
+  /* Responsive Board Dimensions */
+  --board-size: min(calc(100vw - 120px), calc(100vh - 190px), 520px);
 }
 
 /* Light Theme Overrides */
@@ -232,30 +235,166 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 12px 16px;
-  gap: 14px;
+  padding: 8px 12px;
   max-width: 900px;
   margin: 0 auto;
   width: 100%;
+  overflow: hidden;
 }
 
-/* HUD Banner */
-.hud-bar {
+/* Game Arena - Flex container for dynamic 4-sided HUD docking */
+.game-arena {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: min(94vw, 84vh, 560px);
-  padding: 10px 16px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  justify-content: center;
+  position: relative;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  margin: auto;
+  transition: gap var(--transition-normal);
 }
 
+/* 4 Dynamic Orientations:
+   Red -> Top
+   Green -> Right
+   Yellow -> Bottom
+   Blue -> Left
+*/
+.game-arena.pos-top {
+  flex-direction: column;
+}
+.game-arena.pos-top .hud-bar {
+  order: 1;
+}
+.game-arena.pos-top .board-container {
+  order: 2;
+}
+
+.game-arena.pos-bottom {
+  flex-direction: column;
+}
+.game-arena.pos-bottom .board-container {
+  order: 1;
+}
+.game-arena.pos-bottom .hud-bar {
+  order: 2;
+}
+
+.game-arena.pos-right {
+  flex-direction: row;
+}
+.game-arena.pos-right .board-container {
+  order: 1;
+}
+.game-arena.pos-right .hud-bar {
+  order: 2;
+}
+
+.game-arena.pos-left {
+  flex-direction: row;
+}
+.game-arena.pos-left .hud-bar {
+  order: 1;
+}
+.game-arena.pos-left .board-container {
+  order: 2;
+}
+
+/* Dynamic Moving HUD Bar */
+.hud-bar {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal), transform var(--transition-fast);
+  position: relative;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+
+/* Horizontal Mode: Top (Red) & Bottom (Yellow) */
+.hud-bar.pos-top,
+.hud-bar.pos-bottom {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: var(--board-size);
+  max-width: 100%;
+  padding: 10px 16px;
+  animation: hudSlideHorizontal 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hud-bar.pos-top {
+  transform-origin: top center;
+}
+
+.hud-bar.pos-bottom {
+  transform-origin: bottom center;
+}
+
+@keyframes hudSlideHorizontal {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Vertical Mode: Right (Green) & Left (Blue) */
+.hud-bar.pos-right,
+.hud-bar.pos-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 72px;
+  min-width: 72px;
+  height: auto;
+  max-height: var(--board-size);
+  padding: 12px 6px;
+  gap: 12px;
+  animation: hudSlideVertical 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hud-bar.pos-right {
+  transform-origin: right center;
+}
+
+.hud-bar.pos-left {
+  transform-origin: left center;
+}
+
+@keyframes hudSlideVertical {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Player Status Pill */
 .player-status-pill {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.hud-bar.pos-left .player-status-pill,
+.hud-bar.pos-right .player-status-pill {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: center;
 }
 
 .player-dot {
@@ -264,11 +403,24 @@ button {
   border-radius: 50%;
   box-shadow: 0 0 10px currentColor;
   transition: background-color var(--transition-normal);
+  animation: dotGlow 1.6s infinite alternate ease-in-out;
+}
+
+@keyframes dotGlow {
+  0% { transform: scale(0.95); opacity: 0.85; }
+  100% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 14px currentColor; }
 }
 
 .player-info {
   display: flex;
   flex-direction: column;
+}
+
+.hud-bar.pos-left .player-info,
+.hud-bar.pos-right .player-info {
+  align-items: center;
+  text-align: center;
+  width: 100%;
 }
 
 .player-name-row {
@@ -277,9 +429,26 @@ button {
   gap: 6px;
 }
 
+.hud-bar.pos-left .player-name-row,
+.hud-bar.pos-right .player-name-row {
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  width: 100%;
+}
+
 .player-name {
   font-size: 0.95rem;
   font-weight: 700;
+}
+
+.hud-bar.pos-left .player-name,
+.hud-bar.pos-right .player-name {
+  font-size: 0.82rem;
+  max-width: 62px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .player-type-tag {
@@ -292,9 +461,36 @@ button {
   text-transform: uppercase;
 }
 
+.hud-bar.pos-left .player-type-tag,
+.hud-bar.pos-right .player-type-tag {
+  font-size: 0.58rem;
+  padding: 1px 4px;
+}
+
+.player-side-tag {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  color: var(--text-main);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.hud-bar.pos-left .player-side-tag,
+.hud-bar.pos-right .player-side-tag {
+  font-size: 0.58rem;
+  padding: 1px 4px;
+}
+
 .turn-action-hint {
   font-size: 0.78rem;
   color: var(--text-secondary);
+}
+
+.hud-bar.pos-left .turn-action-hint,
+.hud-bar.pos-right .turn-action-hint {
+  display: none;
 }
 
 /* Dice Widget */
@@ -302,6 +498,14 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.hud-bar.pos-left .dice-widget,
+.hud-bar.pos-right .dice-widget {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 .dice-box {
@@ -318,6 +522,12 @@ button {
   transition: all var(--transition-fast);
   position: relative;
   perspective: 400px;
+}
+
+.hud-bar.pos-left .dice-box,
+.hud-bar.pos-right .dice-box {
+  width: 42px;
+  height: 42px;
 }
 
 .dice-box.can-roll {
@@ -386,21 +596,83 @@ button {
   font-weight: 700;
   color: var(--text-main);
   transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.hud-bar.pos-left .roll-btn,
+.hud-bar.pos-right .roll-btn {
+  width: 58px;
+  padding: 7px 0;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* Glowing Player Theme on HUD Bar */
+.hud-bar.player-red {
+  border-color: rgba(239, 68, 68, 0.45);
+  box-shadow: 0 4px 18px rgba(239, 68, 68, 0.22);
+}
+.hud-bar.player-green {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 4px 18px rgba(16, 185, 129, 0.22);
+}
+.hud-bar.player-yellow {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 4px 18px rgba(245, 158, 11, 0.22);
+}
+.hud-bar.player-blue {
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 4px 18px rgba(59, 130, 246, 0.22);
+}
+
+/* Active Roll Button Gradients */
+.hud-bar.player-red .roll-btn.can-roll {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+  border-color: #ef4444;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.45);
+}
+.hud-bar.player-green .roll-btn.can-roll {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  border-color: #10b981;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.45);
+}
+.hud-bar.player-yellow .roll-btn.can-roll {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  border-color: #f59e0b;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.45);
+}
+.hud-bar.player-blue .roll-btn.can-roll {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.45);
 }
 
 .roll-btn:hover:not(:disabled) {
-  background: var(--bg-elevated);
-  border-color: var(--border-focus);
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.roll-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .roll-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
+  filter: grayscale(0.5);
+  box-shadow: none;
 }
 
 /* Board Wrapper */
 .board-container {
-  width: min(94vw, 84vh, 560px);
+  width: var(--board-size);
+  height: var(--board-size);
+  flex-shrink: 0;
   aspect-ratio: 1;
   position: relative;
   border-radius: var(--radius-lg);
@@ -408,6 +680,7 @@ button {
   box-shadow: var(--shadow-md);
   border: 1px solid var(--border-subtle);
   background: var(--board-bg);
+  transition: width var(--transition-normal), height var(--transition-normal);
 }
 
 .ludo-svg-board {
@@ -899,14 +1172,38 @@ button {
 
 /* Mobile Adjustments */
 @media (max-width: 600px) {
+  :root {
+    --board-size: min(calc(100vw - 92px), calc(100dvh - 170px), 360px);
+  }
   .app-header {
     padding: 10px 14px;
   }
   .brand-title {
     font-size: 1rem;
   }
-  .hud-bar {
+  .main-content {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+  .game-arena {
+    gap: 8px;
+  }
+  .hud-bar.pos-top,
+  .hud-bar.pos-bottom {
     padding: 8px 12px;
+  }
+  .hud-bar.pos-left,
+  .hud-bar.pos-right {
+    width: 66px;
+    min-width: 66px;
+    padding: 10px 4px;
+    gap: 8px;
+  }
+  .hud-bar.pos-left .roll-btn,
+  .hud-bar.pos-right .roll-btn {
+    width: 54px;
+    font-size: 0.72rem;
+    padding: 6px 0;
   }
   .dice-box {
     width: 40px;

@@ -117,12 +117,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // UI Element References
   const svgBoard = document.getElementById('ludo-board-svg');
+  const gameArena = document.getElementById('game-arena');
+  const hudBar = document.getElementById('hud-bar');
   const diceBox = document.getElementById('dice-box');
   const rollBtn = document.getElementById('roll-btn');
   const toast = document.getElementById('game-toast');
   const playerDot = document.getElementById('player-dot');
   const playerName = document.getElementById('player-name');
   const playerTypeTag = document.getElementById('player-type-tag');
+  const playerSideTag = document.getElementById('player-side-tag');
   const turnActionHint = document.getElementById('turn-action-hint');
 
   // Modal References
@@ -137,12 +140,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize Game & Renderer
   const renderer = new LudoRenderer(svgBoard, {
+    gameArena,
+    hudBar,
     diceBox,
     rollBtn,
     toast,
     playerDot,
     playerName,
     playerTypeTag,
+    playerSideTag,
     turnActionHint
   });
 

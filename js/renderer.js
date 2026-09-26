@@ -416,14 +416,21 @@ class LudoRenderer {
 
     if (activeColor) {
       diceBox.style.setProperty('--active-glow', activeColor);
+      if (rollBtn) rollBtn.style.setProperty('--player-color', activeColor);
     }
 
     if (canRoll) {
       diceBox.classList.add('can-roll');
-      if (rollBtn) rollBtn.disabled = false;
+      if (rollBtn) {
+        rollBtn.disabled = false;
+        rollBtn.classList.add('can-roll');
+      }
     } else {
       diceBox.classList.remove('can-roll');
-      if (rollBtn) rollBtn.disabled = true;
+      if (rollBtn) {
+        rollBtn.disabled = true;
+        rollBtn.classList.remove('can-roll');
+      }
     }
 
     if (isRolling) {
@@ -468,15 +475,67 @@ class LudoRenderer {
   }
 
   /**
-   * Updates HUD active player status pill
+   * Sets HUD position and player color classes
+   * Red on top, Green on the right, Yellow on the bottom, Blue on the left.
+   */
+  setHUDPosition(playerId) {
+    const arena = this.ui.gameArena;
+    const hudBar = this.ui.hudBar;
+    if (!arena || !hudBar) return;
+
+    const SIDE_MAP = {
+      red: 'top',
+      green: 'right',
+      yellow: 'bottom',
+      blue: 'left'
+    };
+
+    const LABEL_MAP = {
+      red: 'TOP',
+      green: 'RIGHT',
+      yellow: 'BOTTOM',
+      blue: 'LEFT'
+    };
+
+    const side = SIDE_MAP[playerId] || 'top';
+
+    // Remove existing position/player classes
+    ['pos-top', 'pos-right', 'pos-bottom', 'pos-left'].forEach(cls => {
+      arena.classList.remove(cls);
+      hudBar.classList.remove(cls);
+    });
+
+    ['player-red', 'player-green', 'player-yellow', 'player-blue'].forEach(cls => {
+      arena.classList.remove(cls);
+      hudBar.classList.remove(cls);
+    });
+
+    // Add new position and player classes
+    arena.classList.add(`pos-${side}`, `player-${playerId}`);
+    hudBar.classList.add(`pos-${side}`, `player-${playerId}`);
+    arena.dataset.position = side;
+    arena.dataset.player = playerId;
+    hudBar.dataset.position = side;
+    hudBar.dataset.player = playerId;
+
+    const sideTag = this.ui.playerSideTag;
+    if (sideTag) {
+      sideTag.textContent = LABEL_MAP[playerId] || side.toUpperCase();
+    }
+  }
+
+  /**
+   * Updates HUD active player status pill and position
    */
   updateHUD(player, state, roll = null) {
+    if (!player) return;
+
+    this.setHUDPosition(player.id);
+
     const dot = this.ui.playerDot;
     const name = this.ui.playerName;
     const tag = this.ui.playerTypeTag;
     const hint = this.ui.turnActionHint;
-
-    if (!player) return;
 
     if (dot) {
       dot.style.backgroundColor = player.color;
@@ -504,4 +563,7 @@ class LudoRenderer {
 // Export
 if (typeof window !== 'undefined') {
   window.LudoRenderer = LudoRenderer;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { LudoRenderer };
 }
