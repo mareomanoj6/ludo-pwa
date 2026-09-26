@@ -1,20 +1,20 @@
-const CACHE_NAME = 'minimal-ludo-v1';
+const CACHE_NAME = 'minimal-ludo-v2';
 const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  './css/style.css',
-  './js/board-data.js',
-  './js/dice.js',
-  './js/audio.js',
-  './js/ai.js',
-  './js/game.js',
-  './js/renderer.js',
-  './js/app.js',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png',
-  './icons/icon.svg'
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/css/style.css',
+  '/js/board-data.js',
+  '/js/dice.js',
+  '/js/audio.js',
+  '/js/ai.js',
+  '/js/game.js',
+  '/js/renderer.js',
+  '/js/app.js',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/icon.svg'
 ];
 
 // Install event: cache all core assets
@@ -65,7 +65,7 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => {
         // Fallback to index if navigating offline
         if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
+          return caches.match('/index.html');
         }
       });
     })

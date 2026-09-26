@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Minimalist Ludo PWA with fair cryptographic dice and AI opponents",
   "scripts": {
+    "build": "echo 'Static build ready'",
     "start": "node server.js",
     "dev": "node server.js"
   },

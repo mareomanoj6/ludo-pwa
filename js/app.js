@@ -6,7 +6,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   // Service Worker Registration
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js')
+    navigator.serviceWorker.register('/service-worker.js')
       .then(reg => console.log('PWA Service Worker registered:', reg.scope))
       .catch(err => console.log('Service Worker registration failed:', err));
   }
